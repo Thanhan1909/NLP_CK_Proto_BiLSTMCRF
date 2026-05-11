@@ -7,7 +7,7 @@ __pycache__/
 *.pyd
 
 # ========================
-# VIRTUAL ENV (QUAN TRỌNG)
+# VIRTUAL ENV 
 # ========================
 .venv/
 venv/
@@ -20,15 +20,19 @@ env/
 .idea/
 
 # ========================
-# MODEL & CHECKPOINT (KHÔNG PUSH)
+# MODEL & CHECKPOINT 
 # ========================
 checkpoint/
 saved_models/
+*.pt
+*.pth
+*.tar
+*.ckpt
 
 # ========================
-# DATA (CHỈ GIỮ LABEL)
+# DATA 
 # ========================
-# data/
+data/
 
 # ========================
 # TEMP FILE

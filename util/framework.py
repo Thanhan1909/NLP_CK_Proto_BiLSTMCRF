@@ -14,50 +14,7 @@ from transformers import get_linear_schedule_with_warmup
 from torch.nn.parallel import DistributedDataParallel as DDP
 from torch.optim import AdamW
 
-from .viterbi import ViterbiDecoder
 
-
-def get_abstract_transitions(train_fname, use_sampled_data=True):
-    """
-    Compute abstract transitions on the training dataset for StructShot
-    """
-    if use_sampled_data:
-        samples = data_loader.FewShotNERDataset(train_fname, None, 1).samples
-        tag_lists = []
-        for sample in samples:
-            tag_lists += sample['support']['label'] + sample['query']['label']
-    else:
-        samples = data_loader.FewShotNERDatasetWithRandomSampling(train_fname, None, 1, 1, 1, 1).samples
-        tag_lists = [sample.tags for sample in samples]
-
-    s_o, s_i = 0., 0.
-    o_o, o_i = 0., 0.
-    i_o, i_i, x_y = 0., 0., 0.
-    for tags in tag_lists:
-        if tags[0] == 'O': s_o += 1
-        else: s_i += 1
-        for i in range(len(tags)-1):
-            p, n = tags[i], tags[i+1]
-            if p == 'O':
-                if n == 'O': o_o += 1
-                else: o_i += 1
-            else:
-                if n == 'O':
-                    i_o += 1
-                elif p != n:
-                    x_y += 1
-                else:
-                    i_i += 1
-
-    trans = []
-    trans.append(s_o / (s_o + s_i))
-    trans.append(s_i / (s_o + s_i))
-    trans.append(o_o / (o_o + o_i))
-    trans.append(o_i / (o_o + o_i))
-    trans.append(i_o / (i_o + i_i + x_y))
-    trans.append(i_i / (i_o + i_i + x_y))
-    trans.append(x_y / (i_o + i_i + x_y))
-    return trans
 
 def warmup_linear(global_step, warmup_step):
     if global_step < warmup_step:
@@ -296,9 +253,7 @@ class FewShotNERFramework:
         self.val_data_loader = val_data_loader
         self.test_data_loader = test_data_loader
         self.viterbi = viterbi
-        if viterbi:
-            abstract_transitions = get_abstract_transitions(train_fname, use_sampled_data=use_sampled_data)
-            self.viterbi_decoder = ViterbiDecoder(N+2, abstract_transitions, tau)
+       
     
     def __load_model__(self, ckpt):
         '''
@@ -463,22 +418,7 @@ class FewShotNERFramework:
         assert current_idx == logits.size()[0]
         return emmissions
 
-    def viterbi_decode(self, logits, query_tags):
-        emissions_list = self.__get_emmissions__(logits, query_tags)
-        pred = []
-        for i in range(len(query_tags)):
-            sent_scores = emissions_list[i].cpu()
-            sent_len, n_label = sent_scores.shape
-            sent_probs = F.softmax(sent_scores, dim=1)
-            start_probs = torch.zeros(sent_len) + 1e-6
-            sent_probs = torch.cat((start_probs.view(sent_len, 1), sent_probs), 1)
-            feats = self.viterbi_decoder.forward(torch.log(sent_probs).view(1, sent_len, n_label+1))
-            vit_labels = self.viterbi_decoder.viterbi(feats)
-            vit_labels = vit_labels.view(sent_len)
-            vit_labels = vit_labels.detach().cpu().numpy().tolist()
-            for label in vit_labels:
-                pred.append(label-1)
-        return torch.tensor(pred).cuda()
+
 
     def eval(self,
             model,
@@ -536,8 +476,7 @@ class FewShotNERFramework:
                                 query[k] = query[k].cuda()
                         label = label.cuda()
                     logits, pred = model(support, query)
-                    if self.viterbi:
-                        pred = self.viterbi_decode(logits, query['label'])
+                
 
                     tmp_pred_cnt, tmp_label_cnt, correct = model.metrics_by_entity(pred, label)
                     fp, fn, token_cnt, within, outer, total_span = model.error_analysis(pred, label, query)

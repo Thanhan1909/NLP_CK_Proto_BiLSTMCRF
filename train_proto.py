@@ -3,7 +3,7 @@ from util.data_loader import get_loader
 from util.framework import FewShotNERFramework
 from util.word_encoder import BERTWordEncoder
 from model.proto import Proto
-from model.nnshot import NNShot
+
 import sys
 import torch
 from torch import optim, nn
@@ -35,13 +35,13 @@ def main():
             help='Num of query per class')
     parser.add_argument('--batch_size', default=4, type=int,
             help='batch size')
-    parser.add_argument('--train_iter', default=600, type=int,
+    parser.add_argument('--train_iter', default=3000, type=int,
             help='num of iters in training')
     parser.add_argument('--val_iter', default=100, type=int,
             help='num of iters in validation')
     parser.add_argument('--test_iter', default=500, type=int,
             help='num of iters in testing')
-    parser.add_argument('--val_step', default=20, type=int,
+    parser.add_argument('--val_step', default=100, type=int,
            help='val after training how many iters')
     parser.add_argument('--model', default='proto',
             help='model name, must be proto, nnshot, or structshot')
@@ -178,24 +178,8 @@ def main():
         model.to(device)
 
         print("Using device:", device)
-    elif model_name == 'nnshot':
-        print('use nnshot')
-        model = NNShot(word_encoder, dot=opt.dot, ignore_index=opt.ignore_index)
-        framework = FewShotNERFramework(train_data_loader, val_data_loader, test_data_loader, use_sampled_data=opt.use_sampled_data)
-        device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-        model.to(device)
-
-        print("Using device:", device)
-    elif model_name == 'structshot':
-        print('use structshot')
-        model = NNShot(word_encoder, dot=opt.dot, ignore_index=opt.ignore_index)
-        framework = FewShotNERFramework(train_data_loader, val_data_loader, test_data_loader, N=opt.N, tau=opt.tau, train_fname=opt.train, viterbi=True, use_sampled_data=opt.use_sampled_data)
-        device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-        model.to(device)
-
-        print("Using device:", device)
-    else:
-        raise NotImplementedError
+    
+    
 
     if not os.path.exists('checkpoint'):
         os.mkdir('checkpoint')
@@ -229,7 +213,7 @@ def main():
 
     os.makedirs("saved_models", exist_ok=True)
 
-    model_type = model_name  # proto hoặc nnshot
+    model_type = model_name  
 
     save_path = f"saved_models/{model_type}.pt"
     torch.save(model.state_dict(), save_path)
